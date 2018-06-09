@@ -1,9 +1,9 @@
 import argparse
 import pandas as pd
-import ntpath
+from ntpath import basename
 from zipfile import ZipFile
 import zipfile
-from os.path import basename
+import os
 
 
 def main():
@@ -16,19 +16,28 @@ def main():
     parser.add_argument("-s", "--separator", help="csv separator", default=",")
     parser.add_argument("-r", "--rows", help="split file in chunks of r rows", default=10000, type=int)
     parser.add_argument("-o", "--output", help="output path of the splited files", required=True)
+    parser.add_argument("-t", "--test", help="test chunk sizes", default=False)
     args = parser.parse_args()
     df = pd.read_csv(args.input, iterator=True, chunksize=args.rows)
-    filename = ntpath.basename(args.input)
+    filename = basename(args.input)
     count = 0
-    for chunk in df:  # for each 100k rows
-        output_file = '{}/{}{}'.format(args.output, str(count), filename)
-        chunk.to_csv('{}/{}{}'.format(args.output, str(count), filename), index=None)
+    if args.test:
+        __write_output(df.get_chunk(), filename, args.rows, args.output)
+    else:
+        for chunk in df:
+            __write_output(chunk, filename, count, args.output)
+            print('Processed chunk {}'.format(str(count)))
+            count += 1
 
-        # Zip compression has not yet implement in pandas to_csv method
-        with ZipFile('{}.zip'.format(output_file), 'w', zipfile.ZIP_DEFLATED) as myzip:
-            myzip.write(output_file, basename(output_file))
-        print('Processed chunk {}'.format(str(count)))
-        count += 1
+
+def __write_output(chunk, filename, count, output):
+    output_file = '{}/{}{}'.format(output, str(count), filename)
+    chunk.to_csv('{}/{}{}'.format(output, str(count), filename), index=None)
+
+    # Zip compression has not yet implement in pandas to_csv method
+    with ZipFile('{}.zip'.format(output_file), 'w', zipfile.ZIP_DEFLATED) as myzip:
+        myzip.write(output_file, basename(output_file))
+        os.remove(output_file)
 
 
 if __name__ == "__main__":
